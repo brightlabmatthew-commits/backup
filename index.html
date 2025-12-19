@@ -1,0 +1,1322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Station Dashboard</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 50%, #2d3561 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            animation: fadeInDown 0.8s ease;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #00d4ff 0%, #5b6fd7 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+
+        .header .subtitle {
+            font-size: 1rem;
+            color: rgba(255, 255, 255, 0.7);
+            font-weight: 400;
+        }
+
+        .station-selector {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .station-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 25px;
+            padding: 10px 20px;
+            color: rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .station-btn:hover {
+            background: rgba(0, 212, 255, 0.2);
+            border-color: rgba(0, 212, 255, 0.5);
+            color: #00d4ff;
+            transform: translateY(-2px);
+        }
+
+        .station-btn.active {
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.3) 0%, rgba(91, 111, 215, 0.3) 100%);
+            border-color: #00d4ff;
+            color: #00d4ff;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 20px;
+            max-width: 1800px;
+            margin: 0 auto;
+            animation: fadeIn 1s ease;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            padding: 25px;
+        }
+
+        .station-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+
+        .station-icon {
+            font-size: 2rem;
+        }
+
+        .station-info h2 {
+            color: #00d4ff;
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .station-time {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.85rem;
+        }
+
+        .station-location {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #ff69b4;
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+        }
+
+        .weather-alert {
+            background: linear-gradient(135deg, rgba(255, 165, 0, 0.2) 0%, rgba(255, 140, 0, 0.2) 100%);
+            border: 1px solid rgba(255, 165, 0, 0.3);
+            border-radius: 12px;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #ffa500;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .main-metric {
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.15) 0%, rgba(91, 111, 215, 0.15) 100%);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .metric-label-main {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .metric-value-main {
+            font-size: 3.5rem;
+            font-weight: 700;
+            color: #00d4ff;
+            line-height: 1;
+        }
+
+        .metric-unit {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.9rem;
+            margin-left: 3px;
+        }
+
+        .secondary-metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .metric-box {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 18px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .metric-box:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(0, 212, 255, 0.3);
+            transform: translateY(-3px);
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 4px;
+        }
+
+        .metric-label {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.8rem;
+        }
+
+        .metric-sub {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.8rem;
+            margin-top: 4px;
+        }
+
+        .humidity-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .humidity-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00d4ff 0%, #5b6fd7 100%);
+            border-radius: 10px;
+            transition: width 0.5s ease;
+        }
+
+        .additional-metrics {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .additional-metrics h3 {
+            color: #00d4ff;
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .extra-metric {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .extra-icon {
+            font-size: 1.5rem;
+        }
+
+        .extra-info {
+            flex: 1;
+        }
+
+        .extra-label {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.75rem;
+            margin-bottom: 4px;
+        }
+
+        .extra-value {
+            color: white;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .wind-direction {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .wind-direction h3 {
+            color: #00d4ff;
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+        }
+
+        .compass {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 15px;
+            position: relative;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 50%;
+            border: 2px solid rgba(0, 212, 255, 0.3);
+        }
+
+        .compass-arrow {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(0deg);
+            font-size: 2rem;
+            color: #00d4ff;
+            transition: transform 0.3s ease;
+        }
+
+        .direction-label {
+            color: white;
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .direction-degrees {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.85rem;
+        }
+
+        .firebase-config {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 15px;
+        }
+
+        .firebase-config h3 {
+            color: #00d4ff;
+            font-size: 0.85rem;
+            margin-bottom: 10px;
+        }
+
+        .config-item {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 5px;
+            font-family: monospace;
+        }
+
+        .map-container {
+            min-height: 600px;
+            padding: 0;
+            position: relative;
+        }
+
+        .heat-map-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(10, 14, 39, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            padding: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+
+        .heat-map-controls h4 {
+            color: #00d4ff;
+            font-size: 0.9rem;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .heat-layer-btn {
+            display: block;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 10px 12px;
+            color: rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.85rem;
+            margin-bottom: 8px;
+            text-align: left;
+        }
+
+        .heat-layer-btn:hover {
+            background: rgba(0, 212, 255, 0.2);
+            border-color: rgba(0, 212, 255, 0.5);
+            color: #00d4ff;
+        }
+
+        .heat-layer-btn.active {
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.3) 0%, rgba(91, 111, 215, 0.3) 100%);
+            border-color: #00d4ff;
+            color: #00d4ff;
+        }
+
+        .heat-legend {
+            position: absolute;
+            bottom: 30px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(10, 14, 39, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            padding: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            min-width: 200px;
+        }
+
+        .heat-legend h4 {
+            color: #00d4ff;
+            font-size: 0.85rem;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .legend-gradient {
+            height: 20px;
+            border-radius: 5px;
+            margin-bottom: 8px;
+        }
+
+        .legend-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            border-radius: 20px;
+        }
+
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            z-index: 1000;
+        }
+
+        .connection-online {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+            border: 1px solid rgba(76, 175, 80, 0.3);
+        }
+
+        .connection-offline {
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff6b6b;
+            border: 1px solid rgba(255, 107, 107, 0.3);
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 15px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .metric-value-main {
+                font-size: 2.5rem;
+            }
+
+            .station-selector {
+                gap: 8px;
+            }
+
+            .station-btn {
+                font-size: 0.8rem;
+                padding: 8px 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status" id="connectionStatus">
+        <span id="statusText">Connecting...</span>
+    </div>
+
+    <div class="header">
+        <h1>Weather Station Dashboard</h1>
+        <p class="subtitle">Real-time Philippine Automatic Weather Station Network</p>
+    </div>
+
+    <div class="station-selector">
+        <button class="station-btn active" data-station="staCruz">
+            🎓 Felix Huertas Sta Cruz Manila
+        </button>
+        <button class="station-btn" data-station="staAna">
+            💼 Sta-Ana Mercury
+        </button>
+        <button class="station-btn" data-station="manila">
+            🏛️ Bureau of Internal Revenue - Manila
+        </button>
+        <button class="station-btn" data-station="pasay">
+            🏥 Pasay City
+        </button>
+        <button class="station-btn" data-station="tondo">
+            🔨 Tondo Manila
+        </button>
+        <button class="station-btn" data-station="cavite">
+            🌾 Cavite
+        </button>
+    </div>
+
+    <div class="main-grid">
+        <div class="glass-card">
+            <div class="station-header">
+                <div class="station-icon" id="weatherIcon">☀️</div>
+                <div class="station-info">
+                    <h2 id="stationName">Felix Huertas Sta Cruz Manila</h2>
+                    <div class="station-time" id="stationTime">--:--:-- --</div>
+                </div>
+            </div>
+
+            <div class="station-location">
+                <span>📍</span>
+                <span id="stationLocation">Sta. Cruz, Manila</span>
+            </div>
+
+            <div class="weather-alert" id="weatherAlert">
+                <span>⚠️</span>
+                <span id="alertMessage">Loading weather conditions...</span>
+            </div>
+
+            <div class="main-metric">
+                <div class="metric-label-main">Temperature</div>
+                <div class="metric-value-main">
+                    <span id="mainTemp">--.-</span><span class="metric-unit">°C</span>
+                </div>
+            </div>
+
+            <div class="secondary-metrics">
+                <div class="metric-box" style="grid-column: 1 / -1;">
+                    <div class="metric-label">Humidity</div>
+                    <div class="metric-value">
+                        <span id="humidity">--</span><span class="metric-unit">%</span>
+                    </div>
+                    <div class="humidity-bar">
+                        <div class="humidity-fill" id="humidityBar" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="secondary-metrics">
+                <div class="metric-box">
+                    <div class="metric-label">Pressure</div>
+                    <div class="metric-value">
+                        <span id="pressure">--.-</span>
+                    </div>
+                    <div class="metric-sub">hPa</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">Wind Speed</div>
+                    <div class="metric-value">
+                        <span id="windSpeed">--.-</span>
+                    </div>
+                    <div class="metric-sub">km/h</div>
+                </div>
+            </div>
+
+            <div class="additional-metrics">
+                <h3><span>💧</span> Rainfall</h3>
+                <div class="extra-metric">
+                    <div class="extra-icon">💧</div>
+                    <div class="extra-info">
+                        <div class="extra-label">Accumulated</div>
+                        <div class="extra-value">
+                            <span id="rainfall">--.-</span> mm
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="wind-direction">
+                <h3>Wind Direction</h3>
+                <div class="compass">
+                    <div class="compass-arrow" id="windArrow">⬆️</div>
+                </div>
+                <div class="direction-label" id="windDirection">--</div>
+                <div class="direction-degrees" id="windDirectionText">Waiting for data...</div>
+            </div>
+
+            <div class="firebase-config">
+                <h3>🔥 Firebase Connection</h3>
+                <div class="config-item" id="currentConfig">Database: final-project-ef2d3</div>
+                <div class="config-item" id="lastUpdate">Last Update: --</div>
+            </div>
+        </div>
+
+        <div class="glass-card map-container">
+            <div class="heat-map-controls">
+                <h4>📊 Heat Map Layers</h4>
+                <button class="heat-layer-btn active" data-layer="temperature">
+                    🌡️ Temperature
+                </button>
+                <button class="heat-layer-btn" data-layer="humidity">
+                    💧 Humidity
+                </button>
+                <button class="heat-layer-btn" data-layer="pressure">
+                    📊 Pressure
+                </button>
+                <button class="heat-layer-btn" data-layer="wind">
+                    💨 Wind Speed
+                </button>
+                <button class="heat-layer-btn" data-layer="none">
+                    ❌ Hide Heat Map
+                </button>
+            </div>
+            <div class="heat-legend" id="heatLegend">
+                <h4 id="legendTitle">Temperature</h4>
+                <div class="legend-gradient" id="legendGradient"></div>
+                <div class="legend-labels">
+                    <span id="legendMin">20°C</span>
+                    <span id="legendMax">35°C</span>
+                </div>
+            </div>
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfigs = {
+            staCruz: {
+                apiKey: "AIzaSyD7T9C1dn-gb8wM28FHYbxT-ZHbnDTeYxY",
+                databaseURL: "https://final-project-ef2d3-default-rtdb.asia-southeast1.firebasedatabase.app",
+                projectId: "final-project-ef2d3"
+            },
+            staAna: {
+                apiKey: "AIzaSyCwYKh5PCuRJq2ZuH4_OVLgr0bU0ijtQhY",
+                databaseURL: "https://philippines-weather-station-default-rtdb.asia-southeast1.firebasedatabase.app",
+                projectId: "philippines-weather-station"
+            },
+            manila: {
+                apiKey: "AIzaSyA1sI0i6bztLGXxOvEHy5ZWPxmPUrD-vILw",
+                databaseURL: "https://governmentoffice-37134-default-rtdb.asia-southeast1.firebasedatabase.app",
+                projectId: "governmentoffice-37134"
+            },
+            pasay: {
+                apiKey: "AIzaSyDNtz4zgCs1ULcuXsgeT838al0hwCXy-ws",
+                databaseURL: "https://embedded-weather-system-g12-default-rtdb.asia-southeast1.firebasedatabase.app",
+                projectId: "embedded-weather-system-g12"
+            },
+            tondo: {
+                apiKey: "AIzaSyBMockKeyForCavite123456789",
+                databaseURL: "https://cavite-weather-default-rtdb.asia-southeast1.firebasedatabase.app",
+                projectId: "cavite-weather"
+            },
+            cavite: {
+                apiKey: "AIzaSyCoH8FUF7UFosaqMDTyoXA0_XARzALhl24",
+                databaseURL: "https://boatmonitoringsystemg2-default-rtdb.asia-southeast1.firebasedatabase.app",
+                projectId: "boatmonitoringsystemg2"
+            }
+        };
+
+        const stationsData = {
+            staCruz: {
+                name: "Felix Huertas Sta Cruz Manila",
+                location: "Sta. Cruz, Manila",
+                coords: [14.6106, 120.9864],
+                color: "#ff6b6b",
+                data: {}
+            },
+            staAna: {
+                name: "Sta-Ana Mercury",
+                location: "Sta. Ana, Manila",
+                coords: [14.5863, 121.0047],
+                color: "#4fc3f7",
+                data: {}
+            },
+            manila: {
+                name: "Bureau of Internal Revenue - Manila",
+                location: "Boys Scouts of the Philippines National Headquarters",
+                coords: [14.590360465840648, 120.9833893103297],
+                color: "#66bb6a",
+                data: {}
+            },
+            pasay: {
+                name: "Pasay City",
+                location: "Pasay City",
+                coords: [14.5378, 121.0014],
+                color: "#ef5350",
+                data: {}
+            },
+            tondo: {
+                name: "Tondo Manila",
+                location: "Tondo, Manila",
+                coords: [14.6186, 120.9708],
+                color: "#ff9800",
+                data: {}
+            },
+            cavite: {
+                name: "Cavite",
+                location: "Cavite City",
+                coords: [14.4791, 120.8970],
+                color: "#8bc34a",
+                data: {}
+            }
+        };
+
+        // Initialize the first app as default
+        firebase.initializeApp(firebaseConfigs.staCruz);
+        let database = firebase.database();
+        let map;
+        let markers = {};
+        let currentStation = 'staCruz';
+        let weatherData = {};
+        let heatMapLayer = null;
+        let currentHeatLayer = 'temperature';
+        let firebaseApps = {};
+
+        function initializeAllFirebaseApps() {
+            // Set the default app
+            firebaseApps.staCruz = firebase.app();
+            
+            // Initialize other apps
+            Object.keys(firebaseConfigs).forEach(stationKey => {
+                if (stationKey !== 'staCruz') {
+                    try {
+                        firebaseApps[stationKey] = firebase.initializeApp(
+                            firebaseConfigs[stationKey],
+                            stationKey
+                        );
+                        console.log(`Initialized Firebase app for ${stationKey}`);
+                    } catch (error) {
+                        console.warn(`Could not initialize ${stationKey}:`, error.message);
+                        // Create a mock app for stations that can't connect
+                        firebaseApps[stationKey] = null;
+                    }
+                }
+            });
+        }
+
+        function initApp() {
+            initializeAllFirebaseApps();
+            initMap();
+            initStationButtons();
+            initHeatMapControls();
+            updateTime();
+            setInterval(updateTime, 1000);
+            checkFirebaseConnection();
+            loadWeatherData();
+            loadAllStationsData();
+        }
+
+        function checkFirebaseConnection() {
+            const connectedRef = database.ref(".info/connected");
+            connectedRef.on("value", (snap) => {
+                const statusEl = document.getElementById('connectionStatus');
+                const statusText = document.getElementById('statusText');
+                
+                if (snap.val() === true) {
+                    statusEl.className = 'connection-status connection-online';
+                    statusText.textContent = '● Online';
+                } else {
+                    statusEl.className = 'connection-status connection-offline';
+                    statusText.textContent = '● Offline';
+                }
+            });
+        }
+
+        function initMap() {
+            map = L.map('map').setView([14.588, 120.994], 11);
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '© OpenStreetMap, © CartoDB',
+                maxZoom: 18
+            }).addTo(map);
+
+            Object.keys(stationsData).forEach(key => {
+                const station = stationsData[key];
+                const marker = L.circleMarker(station.coords, {
+                    radius: key === currentStation ? 15 : 12,
+                    fillColor: station.color,
+                    color: 'white',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: key === currentStation ? 1 : 0.8
+                }).addTo(map);
+
+                marker.bindPopup(`
+                    <div style="color: #333; font-family: Inter, sans-serif; padding: 5px;">
+                        <h3 style="color: ${station.color}; margin-bottom: 8px;">${station.name}</h3>
+                        <p><strong>Location:</strong> ${station.location}</p>
+                        <p><strong>Status:</strong> <span style="color: #4caf50;">Active</span></p>
+                    </div>
+                `);
+
+                if (key === currentStation) {
+                    marker.openPopup();
+                }
+
+                marker.on('click', () => {
+                    switchStation(key);
+                });
+
+                markers[key] = marker;
+            });
+        }
+
+        function initStationButtons() {
+            document.querySelectorAll('.station-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const stationKey = btn.dataset.station;
+                    console.log('Button clicked for station:', stationKey);
+                    switchStation(stationKey);
+                });
+            });
+        }
+
+        function switchStation(stationKey) {
+            console.log('Switching to station:', stationKey);
+            
+            if (stationKey === currentStation) return;
+            
+            if (!firebaseApps[stationKey]) {
+                console.error(`Station ${stationKey} not initialized`);
+                showAlert(`Station ${stationKey} is currently unavailable`);
+                return;
+            }
+            
+            currentStation = stationKey;
+            const station = stationsData[stationKey];
+
+            // Switch Firebase database
+            database = firebaseApps[stationKey].database();
+
+            // Update UI
+            document.querySelectorAll('.station-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.station === stationKey);
+            });
+
+            document.getElementById('stationName').textContent = station.name;
+            document.getElementById('stationLocation').textContent = station.location;
+            document.getElementById('currentConfig').textContent = `Database: ${firebaseConfigs[stationKey].projectId}`;
+
+            // Update map markers
+            Object.keys(markers).forEach(key => {
+                markers[key].setStyle({
+                    radius: key === stationKey ? 15 : 12,
+                    fillOpacity: key === stationKey ? 1 : 0.8,
+                    weight: key === stationKey ? 3 : 2
+                });
+            });
+
+            map.setView(station.coords, 13);
+            markers[stationKey].openPopup();
+
+            // Reset weather data and reload
+            weatherData = {};
+            resetDisplayValues();
+            loadWeatherData();
+        }
+
+        function showAlert(message) {
+            const alertEl = document.getElementById('alertMessage');
+            const originalMessage = alertEl.textContent;
+            alertEl.textContent = message;
+            alertEl.style.color = '#ff6b6b';
+            
+            setTimeout(() => {
+                alertEl.textContent = originalMessage;
+                alertEl.style.color = '#ffa500';
+            }, 3000);
+        }
+
+        function resetDisplayValues() {
+            document.getElementById('mainTemp').textContent = '--.-';
+            document.getElementById('humidity').textContent = '--';
+            document.getElementById('pressure').textContent = '--.-';
+            document.getElementById('windSpeed').textContent = '--.-';
+            document.getElementById('rainfall').textContent = '--.-';
+            document.getElementById('windDirection').textContent = '--';
+            document.getElementById('windDirectionText').textContent = 'Waiting for data...';
+            document.getElementById('humidityBar').style.width = '0%';
+            document.getElementById('weatherIcon').textContent = '📡';
+            document.getElementById('alertMessage').textContent = 'Loading weather conditions...';
+        }
+
+        function loadWeatherData() {
+            console.log('Loading weather data for:', currentStation);
+            
+            const dhtRef = database.ref('DHT22_Sensor_01');
+            const bmpRef = database.ref('BMP280_Sensor_01');
+            const windRef = database.ref('Wind_Sensor_01');
+            const rainRef = database.ref('Rain_Gauge_01');
+
+            // Remove previous listeners
+            dhtRef.off();
+            bmpRef.off();
+            windRef.off();
+            rainRef.off();
+
+            dhtRef.on('value', (snapshot) => {
+                const data = snapshot.val();
+                console.log('DHT data received:', data);
+                if (data) {
+                    weatherData.temperature = data.temperature;
+                    weatherData.humidity = data.humidity;
+                    updateWeatherDisplay();
+                    updateLastUpdateTime();
+                }
+            }, (error) => {
+                console.error('DHT data error:', error);
+            });
+
+            bmpRef.on('value', (snapshot) => {
+                const data = snapshot.val();
+                console.log('BMP data received:', data);
+                if (data) {
+                    weatherData.pressure = data.pressure;
+                    updateWeatherDisplay();
+                    updateLastUpdateTime();
+                }
+            }, (error) => {
+                console.error('BMP data error:', error);
+            });
+
+            windRef.on('value', (snapshot) => {
+                const data = snapshot.val();
+                console.log('Wind data received:', data);
+                if (data) {
+                    weatherData.windSpeed = data.wind_speed ? (data.wind_speed * 3.6).toFixed(1) : null;
+                    weatherData.windDirection = data.wind_direction;
+                    updateWeatherDisplay();
+                    updateLastUpdateTime();
+                }
+            }, (error) => {
+                console.error('Wind data error:', error);
+            });
+
+            rainRef.on('value', (snapshot) => {
+                const data = snapshot.val();
+                console.log('Rain data received:', data);
+                if (data) {
+                    weatherData.rainfall = data.rainfall;
+                    updateWeatherDisplay();
+                    updateLastUpdateTime();
+                }
+            }, (error) => {
+                console.error('Rain data error:', error);
+            });
+        }
+
+        function updateWeatherDisplay() {
+            if (weatherData.temperature !== undefined && weatherData.temperature !== null) {
+                document.getElementById('mainTemp').textContent = parseFloat(weatherData.temperature).toFixed(1);
+            }
+            
+            if (weatherData.humidity !== undefined && weatherData.humidity !== null) {
+                const humidity = Math.round(weatherData.humidity);
+                document.getElementById('humidity').textContent = humidity;
+                document.getElementById('humidityBar').style.width = humidity + '%';
+            }
+            
+            if (weatherData.pressure !== undefined && weatherData.pressure !== null) {
+                document.getElementById('pressure').textContent = parseFloat(weatherData.pressure).toFixed(1);
+            }
+            
+            if (weatherData.windSpeed !== undefined && weatherData.windSpeed !== null) {
+                document.getElementById('windSpeed').textContent = weatherData.windSpeed;
+            }
+            
+            if (weatherData.rainfall !== undefined && weatherData.rainfall !== null) {
+                document.getElementById('rainfall').textContent = parseFloat(weatherData.rainfall).toFixed(1);
+            }
+
+            updateWindDirection(weatherData.windDirection);
+            updateWeatherConditions();
+        }
+
+        function updateWindDirection(degrees) {
+            if (!degrees && degrees !== 0) return;
+
+            const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+            const directionIndex = Math.round(degrees / 22.5) % 16;
+            const direction = directions[directionIndex];
+
+            const directionNames = {
+                'N': 'North', 'NNE': 'North-Northeast', 'NE': 'Northeast', 'ENE': 'East-Northeast',
+                'E': 'East', 'ESE': 'East-Southeast', 'SE': 'Southeast', 'SSE': 'South-Southeast',
+                'S': 'South', 'SSW': 'South-Southwest', 'SW': 'Southwest', 'WSW': 'West-Southwest',
+                'W': 'West', 'WNW': 'West-Northwest', 'NW': 'Northwest', 'NNW': 'North-Northwest'
+            };
+
+            document.getElementById('windDirection').textContent = direction;
+            document.getElementById('windDirectionText').textContent = `${degrees.toFixed(0)}° - ${directionNames[direction]}`;
+
+            const arrow = document.getElementById('windArrow');
+            arrow.style.transform = `translate(-50%, -50%) rotate(${degrees}deg)`;
+        }
+
+        function updateWeatherConditions() {
+            const temp = parseFloat(weatherData.temperature);
+            const humidity = parseFloat(weatherData.humidity);
+            const pressure = parseFloat(weatherData.pressure);
+            const rainfall = parseFloat(weatherData.rainfall);
+
+            let icon = '☀️';
+            let alert = 'Normal weather conditions';
+
+            if (isNaN(temp)) {
+                icon = '📡';
+                alert = 'Waiting for sensor data...';
+            } else if (temp > 32) {
+                icon = '🌡️';
+                alert = 'High temperature warning';
+            } else if (temp < 20) {
+                icon = '❄️';
+                alert = 'Cool temperature advisory';
+            } else if (humidity > 80) {
+                icon = '💧';
+                alert = 'High humidity levels';
+            } else if (pressure < 1000) {
+                icon = '⛈️';
+                alert = 'Low pressure - Storm possible';
+            } else if (rainfall > 2) {
+                icon = '🌧️';
+                alert = 'Heavy rainfall detected';
+            }
+
+            document.getElementById('weatherIcon').textContent = icon;
+            document.getElementById('alertMessage').textContent = alert;
+        }
+
+        function updateTime() {
+            const now = new Date();
+            const hours = now.getHours();
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            const seconds = now.getSeconds().toString().padStart(2, '0');
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            const displayHours = hours % 12 || 12;
+            
+            document.getElementById('stationTime').textContent = 
+                `${displayHours.toString().padStart(2, '0')}:${minutes}:${seconds} ${ampm}`;
+        }
+
+        function updateLastUpdateTime() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString();
+            document.getElementById('lastUpdate').textContent = `Last Update: ${timeStr}`;
+        }
+
+        function loadAllStationsData() {
+            Object.keys(stationsData).forEach(stationKey => {
+                if (!firebaseApps[stationKey]) {
+                    console.warn(`Firebase app not initialized for ${stationKey}`);
+                    return;
+                }
+                
+                const db = firebaseApps[stationKey].database();
+                
+                db.ref('DHT22_Sensor_01').on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        stationsData[stationKey].data.temperature = data.temperature;
+                        stationsData[stationKey].data.humidity = data.humidity;
+                        updateHeatMap();
+                        updateMarkerPopups();
+                    }
+                });
+
+                db.ref('BMP280_Sensor_01').on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        stationsData[stationKey].data.pressure = data.pressure;
+                        updateHeatMap();
+                        updateMarkerPopups();
+                    }
+                });
+
+                db.ref('Wind_Sensor_01').on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        stationsData[stationKey].data.windSpeed = data.wind_speed ? (data.wind_speed * 3.6).toFixed(1) : null;
+                        stationsData[stationKey].data.windDirection = data.wind_direction;
+                        updateHeatMap();
+                        updateMarkerPopups();
+                    }
+                });
+
+                db.ref('Rain_Gauge_01').on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        stationsData[stationKey].data.rainfall = data.rainfall;
+                        updateMarkerPopups();
+                    }
+                });
+            });
+        }
+
+        function initHeatMapControls() {
+            document.querySelectorAll('.heat-layer-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const layer = btn.dataset.layer;
+                    
+                    document.querySelectorAll('.heat-layer-btn').forEach(b => {
+                        b.classList.remove('active');
+                    });
+                    btn.classList.add('active');
+                    
+                    currentHeatLayer = layer;
+                    
+                    if (layer === 'none') {
+                        if (heatMapLayer) {
+                            map.removeLayer(heatMapLayer);
+                            heatMapLayer = null;
+                        }
+                        document.getElementById('heatLegend').style.display = 'none';
+                    } else {
+                        updateHeatMap();
+                        document.getElementById('heatLegend').style.display = 'block';
+                    }
+                });
+            });
+        }
+
+        function updateHeatMap() {
+            if (currentHeatLayer === 'none') return;
+
+            if (heatMapLayer) {
+                map.removeLayer(heatMapLayer);
+            }
+
+            const heatPoints = [];
+            const values = [];
+
+            Object.keys(stationsData).forEach(key => {
+                const station = stationsData[key];
+                let value = null;
+
+                switch (currentHeatLayer) {
+                    case 'temperature':
+                        value = station.data.temperature;
+                        break;
+                    case 'humidity':
+                        value = station.data.humidity;
+                        break;
+                    case 'pressure':
+                        value = station.data.pressure;
+                        break;
+                    case 'wind':
+                        value = parseFloat(station.data.windSpeed);
+                        break;
+                }
+
+                if (value !== null && value !== undefined && !isNaN(value)) {
+                    heatPoints.push({
+                        coords: station.coords,
+                        value: parseFloat(value)
+                    });
+                    values.push(parseFloat(value));
+                }
+            });
+
+            if (heatPoints.length === 0) return;
+
+            const minValue = Math.min(...values);
+            const maxValue = Math.max(...values);
+
+            const heatCircles = [];
+            heatPoints.forEach(point => {
+                const normalized = (point.value - minValue) / (maxValue - minValue);
+                const color = getHeatColor(normalized, currentHeatLayer);
+                
+                const circle = L.circle(point.coords, {
+                    radius: 8000,
+                    fillColor: color,
+                    fillOpacity: 0.4,
+                    color: color,
+                    weight: 1,
+                    opacity: 0.6
+                });
+                
+                heatCircles.push(circle);
+            });
+
+            heatMapLayer = L.layerGroup(heatCircles).addTo(map);
+
+            updateHeatLegend(minValue, maxValue);
+        }
+
+        function getHeatColor(normalized, layer) {
+            const gradients = {
+                temperature: [
+                    { stop: 0, color: [0, 100, 255] },
+                    { stop: 0.5, color: [0, 255, 0] },
+                    { stop: 1, color: [255, 0, 0] }
+                ],
+                humidity: [
+                    { stop: 0, color: [255, 200, 100] },
+                    { stop: 0.5, color: [100, 200, 255] },
+                    { stop: 1, color: [0, 50, 150] }
+                ],
+                pressure: [
+                    { stop: 0, color: [150, 0, 200] },
+                    { stop: 0.5, color: [100, 150, 255] },
+                    { stop: 1, color: [255, 100, 100] }
+                ],
+                wind: [
+                    { stop: 0, color: [200, 255, 200] },
+                    { stop: 0.5, color: [255, 255, 100] },
+                    { stop: 1, color: [255, 50, 50] }
+                ]
+            };
+
+            const gradient = gradients[layer];
+            
+            let lowerStop = gradient[0];
+            let upperStop = gradient[1];
+            
+            for (let i = 0; i < gradient.length - 1; i++) {
+                if (normalized >= gradient[i].stop && normalized <= gradient[i + 1].stop) {
+                    lowerStop = gradient[i];
+                    upperStop = gradient[i + 1];
+                    break;
+                }
+            }
+
+            const range = upperStop.stop - lowerStop.stop;
+            const rangePct = range === 0 ? 0 : (normalized - lowerStop.stop) / range;
+            
+            const r = Math.round(lowerStop.color[0] + (upperStop.color[0] - lowerStop.color[0]) * rangePct);
+            const g = Math.round(lowerStop.color[1] + (upperStop.color[1] - lowerStop.color[1]) * rangePct);
+            const b = Math.round(lowerStop.color[2] + (upperStop.color[2] - lowerStop.color[2]) * rangePct);
+
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+
+        function updateHeatLegend(minValue, maxValue) {
+            const legends = {
+                temperature: {
+                    title: '🌡️ Temperature',
+                    unit: '°C',
+                    gradient: 'linear-gradient(90deg, rgb(0, 100, 255) 0%, rgb(0, 255, 0) 50%, rgb(255, 0, 0) 100%)'
+                },
+                humidity: {
+                    title: '💧 Humidity',
+                    unit: '%',
+                    gradient: 'linear-gradient(90deg, rgb(255, 200, 100) 0%, rgb(100, 200, 255) 50%, rgb(0, 50, 150) 100%)'
+                },
+                pressure: {
+                    title: '📊 Pressure',
+                    unit: ' hPa',
+                    gradient: 'linear-gradient(90deg, rgb(150, 0, 200) 0%, rgb(100, 150, 255) 50%, rgb(255, 100, 100) 100%)'
+                },
+                wind: {
+                    title: '💨 Wind Speed',
+                    unit: ' km/h',
+                    gradient: 'linear-gradient(90deg, rgb(200, 255, 200) 0%, rgb(255, 255, 100) 50%, rgb(255, 50, 50) 100%)'
+                }
+            };
+
+            const legend = legends[currentHeatLayer];
+            document.getElementById('legendTitle').textContent = legend.title;
+            document.getElementById('legendGradient').style.background = legend.gradient;
+            document.getElementById('legendMin').textContent = minValue.toFixed(1) + legend.unit;
+            document.getElementById('legendMax').textContent = maxValue.toFixed(1) + legend.unit;
+        }
+
+        function updateMarkerPopups() {
+            Object.keys(stationsData).forEach(key => {
+                const station = stationsData[key];
+                const data = station.data;
+                
+                const popupContent = `
+                    <div style="color: #333; font-family: Inter, sans-serif; padding: 5px; min-width: 200px;">
+                        <h3 style="color: ${station.color}; margin-bottom: 8px;">${station.name}</h3>
+                        <p style="margin: 4px 0;"><strong>Location:</strong> ${station.location}</p>
+                        <p style="margin: 4px 0;"><strong>Status:</strong> <span style="color: #4caf50;">Active</span></p>
+                        <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;">
+                        ${data.temperature ? `<p style="margin: 4px 0;"><strong>🌡️ Temp:</strong> ${parseFloat(data.temperature).toFixed(1)}°C</p>` : ''}
+                        ${data.humidity ? `<p style="margin: 4px 0;"><strong>💧 Humidity:</strong> ${Math.round(data.humidity)}%</p>` : ''}
+                        ${data.pressure ? `<p style="margin: 4px 0;"><strong>📊 Pressure:</strong> ${parseFloat(data.pressure).toFixed(1)} hPa</p>` : ''}
+                        ${data.windSpeed ? `<p style="margin: 4px 0;"><strong>💨 Wind:</strong> ${data.windSpeed} km/h</p>` : ''}
+                        ${data.rainfall ? `<p style="margin: 4px 0;"><strong>🌧️ Rain:</strong> ${parseFloat(data.rainfall).toFixed(1)} mm</p>` : ''}
+                    </div>
+                `;
+                
+                markers[key].setPopupContent(popupContent);
+            });
+        }
+
+        window.addEventListener('load', initApp);
+    </script>
+</body>
+</html>
